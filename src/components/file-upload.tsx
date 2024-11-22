@@ -1,55 +1,56 @@
-'use client';
+import React, { useState } from 'react';
 
-import { useState } from 'react';
-import { Upload, File } from 'lucide-react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
+export default function EssayUploadForm() {
+    const [essay, setEssay] = useState('');
+    const [webinarContent, setWebinarContent] = useState('');
 
-interface FileUploadProps {
-  label: string;
-  acceptedFileTypes: string;
-  onFileSelect: (file: File) => void;
-}
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        if (name === 'essay') {
+            setEssay(value);
+        } else if (name === 'webinarContent') {
+            setWebinarContent(value);
+        }
+    };
 
-export function FileUpload({ label, acceptedFileTypes, onFileSelect }: FileUploadProps) {
-  const [fileName, setFileName] = useState<string | null>(null);
+    const handleSubmit = async () => {
+        const formData = new FormData();
+        formData.append('essay', essay);
+        formData.append('webinarContent', webinarContent);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setFileName(file.name);
-      onFileSelect(file);
-    }
-  };
+        const response = await fetch('/api/process', {
+            method: 'POST',
+            body: formData,
+        });
 
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={`file-upload-${label}`} className="text-sm font-medium text-gray-700">
-        {label}
-      </Label>
-      <div className="flex items-center space-x-2">
-        <Input
-          id={`file-upload-${label}`}
-          type="file"
-          accept={acceptedFileTypes}
-          onChange={handleFileChange}
-          className="hidden"
-        />
-        <Button
-          onClick={() => document.getElementById(`file-upload-${label}`)?.click()}
-          variant="outline"
-          className="w-full justify-start text-left font-normal hover:bg-blue-50"
-        >
-          <Upload className="mr-2 h-4 w-4" />
-          {fileName || `Choose ${label} file`}
-        </Button>
-        {fileName && (
-          <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-800">
-            <File className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-    </div>
-  );
+        const result = await response.json();
+        if (response.ok) {
+            console.log('Feedback:', result.feedback);
+        } else {
+            console.error('Error:', result.error);
+        }
+    };
+
+    return (
+        <div className="p-4 space-y-4">
+            <h1 className="text-lg font-semibold">Submit Essay and Webinar Content</h1>
+            <textarea
+                name="essay"
+                placeholder="Enter your essay here..."
+                value={essay}
+                onChange={handleInputChange}
+                className="w-full p-2 border"
+            />
+            <textarea
+                name="webinarContent"
+                placeholder="Enter webinar content here..."
+                value={webinarContent}
+                onChange={handleInputChange}
+                className="w-full p-2 border"
+            />
+            <button onClick={handleSubmit} className="px-4 py-2 bg-blue-500 text-white">
+                Submit
+            </button>
+        </div>
+    );
 }

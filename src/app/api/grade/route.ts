@@ -1,78 +1,64 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
-import { getServerSession } from 'next-auth'
-import { prisma } from '../../../lib/prisma'
+import { NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { prisma } from '../../../lib/prisma';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-async function extractText(file: File) {
-  const text = await file.text()
-  return text
-}
+export async function POST(req: Request) {
+    try {
+        // Parse form data from the request
+        const formData = await req.formData();
+        const essay = formData.get('essay')?.toString() || '';
+        const webinarContent = formData.get('webinarContent')?.toString() || '';
 
-export async function POST(req: NextRequest) {
-  try {
-    const session = await getServerSession()
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        // Validate that both fields are present
+        if (!essay || !webinarContent) {
+            return NextResponse.json(
+                { error: 'Both essay and webinar content are required.' },
+                { status: 400 }
+            );
+        }
+
+        // Generate feedback using Google Generative AI
+        const response = await genAI.generateText({
+            model: 'gemini-1.5-pro',
+            prompt: `
+                Essay:
+                ${essay}
+
+                Provide feedback based on:
+                1. Understanding of core concepts
+                2. Alignment with webinar content
+                3. Critical analysis
+                4. Writing quality
+                5. Suggested improvements
+            `,
+        });
+
+        const feedback = response.data.text || 'No feedback generated.';
+
+        // Assuming a valid user ID for submission
+        const userId = 'some-user-id'; // Replace with actual user ID.
+
+        // Save submission to the database using Prisma
+        const submission = await prisma.submission.create({
+            data: {
+                essayText: essay,
+                webinarText: webinarContent,
+                feedback,
+                user: {
+                    connect: { id: userId },
+                },
+            },
+        });
+
+        // Return feedback and submission ID
+        return NextResponse.json({ feedback, submissionId: submission.id });
+    } catch (error) {
+        console.error('Error processing request:', error);
+        return NextResponse.json(
+            { error: 'Failed to process the essay.' },
+            { status: 500 }
+        );
     }
-
-    const formData = await req.formData()
-    const essay = formData.get('essay') as File
-    const webinarContent = formData.get('webinarContent') as File
-
-    const essayText = await extractText(essay)
-    const webinarText = await extractText(webinarContent)
-
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
-
-    const prompt = `
-      Analyze this essay against the provided webinar content.
-      
-      Webinar Content:
-      ${webinarText}
-      
-      Essay:
-      ${essayText}
-      
-      Provide feedback based on:
-      1. Understanding of core concepts
-      2. Alignment with webinar content
-      3. Critical analysis
-      4. Writing quality
-      5. Suggested improvements
-    `
-
-    const result = await model.generateContent(prompt)
-    const response = await result.response
-    const feedback = response.text()
-
-    // Get or create user
-    const user = await prisma.user.upsert({
-      where: { email: session.user.email },
-      update: {},
-      create: {
-        email: session.user.email,
-        name: session.user.name || '',
-      },
-    })
-
-    // Save submission
-    const submission = await prisma.submission.create({
-      data: {
-        essayText,
-        webinarText,
-        feedback,
-        userId: user.id,
-      },
-    })
-
-    return NextResponse.json({ feedback, submissionId: submission.id })
-  } catch (error) {
-    console.error('Error processing request:', error)
-    return NextResponse.json(
-      { error: 'Failed to process the essay' },
-      { status: 500 }
-    )
-  }
 }
