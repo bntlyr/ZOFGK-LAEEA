@@ -19,45 +19,71 @@ export async function POST(req: Request) {
             );
         }
 
+        // Get the generative model
+        const model = genAI.getGenerativeModel({
+            model: 'gemini-1.5-flash'
+        });
+
         // Generate feedback using Google Generative AI
-        const response = await genAI.generateText({
-            model: 'gemini-1.5-pro',
-            prompt: `
-                Essay:
-                ${essay}
+        const result = await model.generateContent(`
+            Essay:
+            ${essay}
 
-                Provide feedback based on:
-                1. Understanding of core concepts
-                2. Alignment with webinar content
-                3. Critical analysis
-                4. Writing quality
-                5. Suggested improvements
-            `,
+            Webinar Content:
+            ${webinarContent}
+
+            Summarize the content and you need to score it from 0-100% on how relevant the essay is to the webinar content.
+            I need you to be honest about your feedback, as it is paramount for the users to know the audience's reception from
+            their webinar. You are a analyzing tool that will summarize chunks of responses into a concise matter, and score it 
+            based on its relevancy. 
+        `);
+
+        // Extract and structure the feedback
+        const feedbackText = result.response.text();
+        
+        // Log the complete feedback for debugging
+        console.log('Generated Feedback:', {
+            rawFeedback: feedbackText,
+            essayLength: essay.length,
+            webinarLength: webinarContent.length
         });
 
-        const feedback = response.data.text || 'No feedback generated.';
+        // Save to database if needed
+        // const submission = await prisma.submission.create({
+        //     data: {
+        //         essayText: essay,
+        //         webinarText: webinarContent,
+        //         feedback: feedbackText,
+        //         user: {
+        //             connect: { id: userId },
+        //         },
+        //     },
+        // });
 
-        // Assuming a valid user ID for submission
-        const userId = 'some-user-id'; // Replace with actual user ID.
-
-        // Save submission to the database using Prisma
-        const submission = await prisma.submission.create({
-            data: {
-                essayText: essay,
-                webinarText: webinarContent,
-                feedback,
-                user: {
-                    connect: { id: userId },
-                },
-            },
+        // Return structured response
+        return NextResponse.json({
+            success: true,
+            feedback: feedbackText,
+            metadata: {
+                essayLength: essay.length,
+                webinarLength: webinarContent.length,
+                timestamp: new Date().toISOString()
+            }
         });
 
-        // Return feedback and submission ID
-        return NextResponse.json({ feedback, submissionId: submission.id });
     } catch (error) {
-        console.error('Error processing request:', error);
+        // Enhanced error handling
+        console.error('Detailed error:', {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+        });
+
         return NextResponse.json(
-            { error: 'Failed to process the essay.' },
+            { 
+                success: false,
+                error: 'Failed to process the essay',
+                details: error instanceof Error ? error.message : 'Unknown error'
+            },
             { status: 500 }
         );
     }
