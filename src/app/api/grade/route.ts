@@ -33,6 +33,7 @@ export async function POST(req: Request) {
             ${webinarContent}
 
             Summarize the content and you need to score it from 0-100% on how relevant the essay is to the webinar content.
+            The said content can be lesson plan or transcript 
             I need you to be honest about your feedback, as it is paramount for the users to know the audience's reception from
             their webinar. You are a analyzing tool that will summarize chunks of responses into a concise matter, and score it 
             based on its relevancy. 
